@@ -124,11 +124,11 @@ soft_skills = float(
 
 extracurricular = input(
     "Extracurricular activities? (Yes/No): "
-)
+).strip().title()
 
 training = input(
     "Placement training completed? (Yes/No): "
-)
+).strip().title()
 
 ssc = int(
     input("Enter SSC marks: ")
