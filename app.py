@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 
+from career_engine import recommend_career
+from skill_gap import find_skill_gap
+from employability import calculate_employability_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -201,15 +204,44 @@ hsc = st.number_input(
     step=1
 )
 
+# ==========================================
+# CAREER SKILLS
+# ==========================================
 
+st.header("Skills")
+
+all_skills = [
+    "Python",
+    "SQL",
+    "Excel",
+    "Power BI",
+    "Statistics",
+    "Machine Learning",
+    "Scikit-learn",
+    "Pandas",
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "React",
+    "Node.js",
+    "MongoDB"
+]
+
+student_skills = st.multiselect(
+    "Select the skills you currently have:",
+    all_skills
+)
 # ==========================================
 # PREDICT BUTTON
 # ==========================================
-
 if st.button(
     "🔮 Predict Placement",
     use_container_width=True
 ):
+
+    # ======================================
+    # CREATE STUDENT DATA
+    # ======================================
 
     student = pd.DataFrame([{
         "CGPA": cgpa,
@@ -225,21 +257,100 @@ if st.button(
     }])
 
 
-    # Prediction
+    # ======================================
+    # PLACEMENT PREDICTION
+    # ======================================
+
     prediction = model.predict(student)
 
-    # Probability
     probabilities = model.predict_proba(student)
 
     placement_probability = probabilities[0][1]
 
 
     # ======================================
-    # DISPLAY RESULT
+    # EMPLOYABILITY SCORE
+    # ======================================
+
+    employability_score = calculate_employability_score(
+        placement_probability,
+        cgpa,
+        aptitude,
+        soft_skills,
+        internships,
+        projects
+    )
+
+
+    # ======================================
+    # CAREER RECOMMENDATION
+    # ======================================
+
+    if student_skills:
+
+        recommended_role, career_scores = recommend_career(
+            student_skills
+        )
+
+    else:
+
+        recommended_role = "Not enough skill information"
+
+        career_scores = {}
+
+
+    # ======================================
+    # SKILL GAP
+    # ======================================
+
+    if student_skills and recommended_role != "Not enough skill information":
+
+        matched_skills, missing_skills = find_skill_gap(
+            student_skills,
+            recommended_role
+        )
+
+    else:
+
+        matched_skills = []
+        missing_skills = []
+
+
+    # ======================================
+    # SALARY RANGE
+    # ======================================
+
+    salary_df = pd.read_csv("salary_ranges.csv")
+
+    salary_row = salary_df[
+        salary_df["Role"] == recommended_role
+    ]
+
+    if not salary_row.empty:
+
+        min_salary = salary_row.iloc[0]["MinSalary"]
+
+        max_salary = salary_row.iloc[0]["MaxSalary"]
+
+        salary_range = (
+            f"₹{min_salary:.1f} - ₹{max_salary:.1f} LPA"
+        )
+
+    else:
+
+        salary_range = "Not available"
+
+
+    # ======================================
+    # DISPLAY RESULTS
     # ======================================
 
     st.divider()
 
+    st.header("📊 Your Results")
+
+
+    # Placement
     if prediction[0] == 1:
 
         st.success(
@@ -258,7 +369,77 @@ if st.button(
         f"{placement_probability * 100:.2f}%"
     )
 
-
     st.progress(
         float(placement_probability)
     )
+
+
+    # ======================================
+    # EMPLOYABILITY
+    # ======================================
+
+    st.subheader("🎯 Employability Score")
+
+    st.metric(
+        "Overall Score",
+        f"{employability_score}/100"
+    )
+
+
+    # ======================================
+    # CAREER
+    # ======================================
+
+    st.subheader("💼 Recommended Career")
+
+    st.info(
+        f"Recommended Role: **{recommended_role}**"
+    )
+
+
+    # ======================================
+    # SALARY
+    # ======================================
+
+    st.subheader("💰 Expected Salary Range")
+
+    st.write(salary_range)
+
+
+    # ======================================
+    # SKILL GAP
+    # ======================================
+
+    st.subheader("🧩 Skill Gap Analysis")
+
+
+    if matched_skills:
+
+        st.write("### ✅ Skills You Have")
+
+        st.write(
+            ", ".join(matched_skills)
+        )
+
+
+    if missing_skills:
+
+        st.write("### ❌ Skills to Improve")
+
+        for skill in missing_skills:
+
+            st.write(
+                f"- {skill}"
+            )
+
+    elif student_skills:
+
+        st.success(
+            "🎉 No major skill gaps found for this role!"
+        )
+
+    else:
+
+        st.warning(
+            "Select some skills to perform skill-gap analysis."
+        )
